@@ -72,7 +72,7 @@ tr.plotrow:hover td{background:#f1eede}
 #chart svg text{pointer-events:none}
 .chart-tip{position:fixed;pointer-events:none;background:#1f2933;color:#fff;padding:7px 11px;border-radius:9px;font-size:12.5px;opacity:0;transition:opacity .12s ease;z-index:60;max-width:300px;box-shadow:0 4px 14px rgba(0,0,0,.25)}
 .popup-ov{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(36,42,48,.55);z-index:60;display:flex;align-items:center;justify-content:center;padding:20px}
-.login-ov{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(36,42,48,.78);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
+.login-ov{position:fixed;left:0;top:0;right:0;bottom:0;background:#f4f1e8;z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
 .login-card{background:var(--surface);border-radius:12px;max-width:430px;width:100%;padding:22px 24px;box-shadow:0 12px 40px rgba(0,0,0,.35)}
 .login-card input[type=password]{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;background:#fff;color:var(--text);margin:6px 0 4px}
 .login-card input[type=password]:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
@@ -235,6 +235,13 @@ input[type=file]::file-selector-button:hover{background:#A9BE93}
   </div>
 </div>
 </main>
+<div id="login-ov" class="login-ov" style="display:none">
+  <div class="login-card">
+    <input type="password" id="login-pass" autocomplete="current-password" placeholder="Пароль">
+    <div class="refbtns"><button id="login-go" class="primary">Войти</button><button id="login-skip" style="display:none">Войти без облака</button></div>
+    <div id="login-err" class="hint err" style="display:none"></div>
+  </div>
+</div>
 <footer>Посев · Урожай · Сорняки — классификатор публикаций · файлы обрабатываются локально · референсы хранятся в этом браузере</footer>
 
 <script>/*! xlsx.js (C) 2013-present SheetJS -- http://sheetjs.com */
@@ -739,7 +746,6 @@ async function cloudLoadAll(){
     periodSel=null;
     recomputeAll();
     refreshMonthCards();
-    if(!firstLoadDone){ firstLoadDone=true; showTab("anal"); }
   } else {
     setStatus("Облако подключено, но данных пока нет. Загрузите файлы кнопками выше.","ok");
   }
@@ -1156,7 +1162,6 @@ function setMonthBrand(m, f){
       setStatus('Загружен «'+f.name+'» → «'+b.fileName+'»: '+fmt(b.rows.length)+' сообщений · '+fmt(b.plotsCount)+' сюжетов'+(b.warn?' · ⚠ '+b.warn.trim():''),'ok');
       recomputeAll();
       refreshMonthCards();
-      if(!firstLoadDone){ firstLoadDone=true; showTab("anal"); }
       cloudUploadMonth(m);
     }catch(err2){
       setStatus('Ошибка: '+err2.message,'err');
@@ -1207,38 +1212,42 @@ function startLogin(){
   if(stored) inp.value=stored;
   function showErr(t){ err.textContent=t; err.style.display="block"; }
   function hideErr(){ err.style.display="none"; }
-  function attempt(){
+  function attempt(silent){
     var p=inp.value;
-    if(!p){ showErr("Введите пароль"); return; }
+    if(!p){ if(!silent) showErr("Введите пароль"); return; }
     hideErr();
     $("#login-go").disabled=true;
     fetch(CLOUD.url,{headers:{"X-Password":p}})
       .then(function(r){
         $("#login-go").disabled=false;
         if(r.status===403){ showErr("Неверный пароль"); return; }
-        if(!r.ok){ showErr("Облако вернуло ошибку "+r.status); return; }
+        if(!r.ok){ showErr("Ошибка доступа"); return; }
         CLOUD_PASS=p;
         try{ localStorage.setItem("possev-cloud-pass",p); }catch(e){}
         ov.style.display="none";
-        setStatus("Вход выполнен","ok");
         cloudLoadAll();
       })
       .catch(function(e){
         $("#login-go").disabled=false;
-        showErr("Облако недоступно ("+e.message+"). Можно войти без облака — данные не подгрузятся.");
+        showErr("Облако недоступно — можно войти без него");
         $("#login-skip").style.display="";
       });
   }
   if(!loginWired){
     loginWired=true;
-    $("#login-go").addEventListener("click",attempt);
+    $("#login-go").addEventListener("click",function(){ attempt(false); });
     $("#login-skip").addEventListener("click",function(){ CLOUD_PASS=""; ov.style.display="none"; });
-    inp.addEventListener("keydown",function(e){ if(e.key==="Enter") attempt(); });
+    inp.addEventListener("keydown",function(e){ if(e.key==="Enter") attempt(false); });
   }
   hideErr();
   $("#login-skip").style.display="none";
   ov.style.display="flex";
-  setTimeout(function(){ try{ inp.focus(); }catch(e){} },60);
+  if(stored){
+    inp.value=stored;
+    attempt(true);
+  } else {
+    setTimeout(function(){ try{ inp.focus(); }catch(e){} },60);
+  }
 }
 
 buildUploadRow();
@@ -1292,14 +1301,5 @@ document.querySelectorAll(".tabbtn").forEach(function(b){
 })();
 
 </script>
-<div id="login-ov" class="login-ov" style="display:none">
-  <div class="login-card">
-    <div class="popup-title">Доступ к классификатору</div>
-    <p class="hint">Введите пароль доступа. Он же — пароль облачного хранилища.</p>
-    <input type="password" id="login-pass" autocomplete="current-password">
-    <div class="refbtns"><button id="login-go" class="primary">Войти</button><button id="login-skip" style="display:none">Войти без облака</button></div>
-    <div id="login-err" class="hint err" style="display:none"></div>
-  </div>
-</div>
 </body>
 </html>
