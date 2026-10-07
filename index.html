@@ -520,6 +520,7 @@ function buildStats(M){
 
 function classifyMonth(m){
   var M=months[m];
+  if(!M || !M.brand) return;
   var refList=refs.map(normRef);
   var prSet=M.prizmaInfo?M.prizmaInfo.set:null;
   var r=classifyAll(M.brand.rows, refList, prSet);
@@ -529,7 +530,9 @@ function classifyMonth(m){
 function rebuildRefCounts(){
   refCounts=refs.map(function(){return 0;});
   monthOrder.forEach(function(m){
-    var rc=months[m].refCounts;
+    var M=months[m];
+    if(!M || !M.refCounts) return;
+    var rc=M.refCounts;
     rc.forEach(function(v,i){ refCounts[i]=(refCounts[i]||0)+v; });
   });
   updateRefCounts();
@@ -666,11 +669,14 @@ function crossPlots(){
   // по ВСЕМ загруженным месяцам и перекрашиваем их «сорняковые» сообщения в «Урожай».
   var seedPlots=new Set();
   monthOrder.forEach(function(k){
-    months[k].plotInfo.forEach(function(p, key){ if(p.hasSeed) seedPlots.add(key); });
+    var M0=months[k];
+    if(!M0 || !M0.plotInfo) return;
+    M0.plotInfo.forEach(function(p, key){ if(p.hasSeed) seedPlots.add(key); });
   });
   if(!seedPlots.size) return;
   monthOrder.forEach(function(k){
     var M=months[k];
+    if(!M || !M.results) return;
     var changed=false;
     for(var i=0;i<M.results.length;i++){
       var r=M.results[i];
@@ -1090,13 +1096,16 @@ function attrEsc(s){ return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;
 
 function niceCeil(v){
   if(v<=0) return 1;
-  var p=Math.pow(10, Math.floor(Math.log(v)/Math.LN10));
-  var m=v/p;
-  var steps=[1,1.5,2,2.5,3,4,5,6,8,10];
-  for(var i=0;i<steps.length;i++){ if(steps[i]*p>=v) return steps[i]*p; }
-  return 10*p;
-}
-function renderChart(){
+  var d=1;
+  while(d*100<v) d*=10;
+  var base=[5,6,7,8,9,10,11,12,14,15,16,18,20,22,24,25,26,28,30,32,34,35,36,38,40,42,44,45,46,48,50,52,54,55,56,58,60,65,70,75,80,85,90,95,100];
+  if(v<50) base=[5,10,15,20,25,30,40,50];
+  for(var i=0;i<base.length;i++){
+    var c=base[i]*d;
+    if(c>=v) return c;
+  }
+  return base[base.length-1]*d;
+}function renderChart(){
   var box=$("#chart"), lgEl=$("#chart-legend");
   var list=[];
   periodMonths().forEach(function(m){
