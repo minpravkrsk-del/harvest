@@ -197,6 +197,7 @@ input[type=file]::file-selector-button:hover{background:#A9BE93}
   <h2>Результат классификации</h2>
   <div class="biglegend" id="chart-legend"></div>
   <div id="chart"></div>
+  <p id="chart-note" class="hint" style="margin:2px 0 0"></p>
   <p class="hint">Левый столбец — «наше поле» (посев тёмно-зелёный + урожай зелёный), правый — сорняки (жёлтый — сообщения сюжетов без посева, серый — сообщения без сюжета). Высота столбцов — число сообщений.</p>
 </section>
 
@@ -1096,15 +1097,8 @@ function attrEsc(s){ return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;
 
 function niceCeil(v){
   if(v<=0) return 1;
-  var d=1;
-  while(d*100<v) d*=10;
-  var base=[5,6,7,8,9,10,11,12,14,15,16,18,20,22,24,25,26,28,30,32,34,35,36,38,40,42,44,45,46,48,50,52,54,55,56,58,60,65,70,75,80,85,90,95,100];
-  if(v<50) base=[5,10,15,20,25,30,40,50];
-  for(var i=0;i<base.length;i++){
-    var c=base[i]*d;
-    if(c>=v) return c;
-  }
-  return base[base.length-1]*d;
+  var unit=(v>=20000)?500:(v>=5000)?100:(v>=1000)?50:(v>=200)?10:5;
+  return Math.ceil(v/unit)*unit;
 }function renderChart(){
   var box=$("#chart"), lgEl=$("#chart-legend");
   var list=[];
@@ -1132,7 +1126,18 @@ function niceCeil(v){
   var blockW=(innerW-gm*(n-1))/n;
   var colW=(blockW-g1)/2;
   if(colW<10){ colW=Math.max(6,blockW/2); g1=blockW-2*colW; }
-  var ymax=niceCeil(Math.max.apply(null, list.map(function(it){return it.total;})));
+  var maxCol=0, topName='';
+  list.forEach(function(it){
+    var c1=it.seg[0].v+it.seg[1].v, c2=it.seg[2].v+it.seg[3].v;
+    if(c1>maxCol){ maxCol=c1; topName=it.name; }
+    if(c2>maxCol){ maxCol=c2; topName=it.name; }
+  });
+  var ymax=niceCeil(maxCol);
+  var note=$("#chart-note");
+  if(note){
+    if(list.length>1) note.textContent='Верх шкалы — по самому высокому столбцу: '+topName+' ('+fmt(maxCol)+' сообщ. в столбце).';
+    else note.textContent='';
+  }
   var y0=padT+innerH;
   function yOf(v){ return Math.round(y0-innerH*v/ymax); }
   var svg='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet" role="img">';
