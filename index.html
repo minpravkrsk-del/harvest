@@ -659,8 +659,29 @@ function buildPlots(list){
   });
   plots=Array.from(map.values());
 }
+function crossPlots(){
+  // Сюжет может тянуться через границу месяцев: посев был в одном месяце (посевные
+  // ссылки видны в Призме/референсах того месяца), а продолжение сюжета — в следующем.
+  // Тогда хвост сюжета без этого правила падает в «Сорняки». Собираем сюжеты с посевом
+  // по ВСЕМ загруженным месяцам и перекрашиваем их «сорняковые» сообщения в «Урожай».
+  var seedPlots=new Set();
+  monthOrder.forEach(function(k){
+    months[k].plotInfo.forEach(function(p, key){ if(p.hasSeed) seedPlots.add(key); });
+  });
+  if(!seedPlots.size) return;
+  monthOrder.forEach(function(k){
+    var M=months[k];
+    var changed=false;
+    for(var i=0;i<M.results.length;i++){
+      var r=M.results[i];
+      if(r.cls==="Сорняки" && r.plotKey && seedPlots.has(r.plotKey)){ r.cls="Урожай"; r.osn="Сюжет с посевом"; changed=true; }
+    }
+    if(changed) M.stats=buildStats(M);
+  });
+}
 function recomputeAll(){
   monthOrder.forEach(classifyMonth);
+  crossPlots();
   rebuildRefCounts();
   refreshAnalysis();
 }
