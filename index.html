@@ -161,7 +161,7 @@ input[type=file]::file-selector-button:hover{background:#A9BE93}
 <section>
   <h2>Файлы по месяцам</h2>
   <p class="hint">Загрузите выгрузку «Бренд Аналитикс» (и при наличии — выгрузку посевов «Призмы») для каждого месяца. Данные всех загруженных месяцев объединяются: классификация и аналитика считаются сквозным итогом.</p>
-  <div class="uprow"><span class="plabel">Месяц:</span><select id="up-month"></select><button id="up-brand" class="primary">Загрузить «Бренд»…</button><button id="up-prizma">Загрузить «Призму»…</button><button id="cloud-pass" title="Задать пароль облачного хранилища заново">Пароль облака…</button><input type="file" id="up-brand-file" accept=".xlsx,.xls,.csv" style="display:none"><input type="file" id="up-prizma-file" accept=".xlsx,.xls,.csv" style="display:none"></div>
+  <div class="uprow"><span class="plabel">Месяц:</span><select id="up-month"></select><button id="up-brand" class="primary">Загрузить «Бренд»…</button><button id="up-prizma">Загрузить «Призму»…</button><input type="file" id="up-brand-file" accept=".xlsx,.xls,.csv" style="display:none"><input type="file" id="up-prizma-file" accept=".xlsx,.xls,.csv" style="display:none"></div>
   <p id="up-status" class="hint"></p>
   <div id="month-list"></div>
 </section>
@@ -1137,12 +1137,6 @@ function buildUploadRow(){
   $("#up-prizma").addEventListener("click", function(){ $("#up-prizma-file").click(); });
   $("#up-brand-file").addEventListener("change", function(e){ var f=e.target.files&&e.target.files[0]; e.target.value=""; if(f) uploadPicked("brand", f); });
   $("#up-prizma-file").addEventListener("change", function(e){ var f=e.target.files&&e.target.files[0]; e.target.value=""; if(f) uploadPicked("prizma", f); });
-  $("#cloud-pass").addEventListener("click", function(){
-    CLOUD_PASS=null;
-    try{ localStorage.removeItem("possev-cloud-pass"); }catch(e){}
-    $("#login-pass").value="";
-    startLogin();
-  });
 }
 function uploadPicked(kind, f){
   var m=parseInt($("#up-month").value,10);
