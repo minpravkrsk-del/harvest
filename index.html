@@ -696,7 +696,7 @@ async function cloudPut(name, u8){
   for(var a=0;a<3;a++){
     if(a) await new Promise(function(res){ setTimeout(res, 700*a); });
     try{
-      var r=await cloudCall("?op=put&name="+encodeURIComponent(name), {method:"POST", body:u8});
+      var r=await cloudCall("?op=put&name="+encodeURIComponent(name), {method:"POST", body:u8, headers:{"Content-Type":"application/octet-stream"}});
       if(r.ok) return;
       var extra="";
       try{ extra=(await r.text()).slice(0,180); }catch(e2){}
