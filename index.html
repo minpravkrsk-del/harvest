@@ -344,7 +344,20 @@ function normalizeUrl(raw){
   if(s.indexOf("mailto:")===0||s.indexOf("javascript:")===0) return "";
   if(!/^[a-z0-9+.\-]+:\/\//.test(s)) s="https://"+s;
   s=s.replace(/^[a-z0-9+.\-]+:\/\//,"");
-  var q=s.indexOf("?"); if(q>-1) s=s.slice(0,q);
+  var q=s.indexOf("?");
+  if(q>-1){
+    var query=s.slice(q+1);
+    var m=/(?:^|&)w=([^&#]+)/.exec(query);
+    var m2=/(?:^|&)z=([^&#]+)/.exec(query);
+    var redirect=null;
+    var w=m?m[1]:(m2?m2[1]:null);
+    if(w){ try{ w=decodeURIComponent(w); }catch(e){}
+      w=w.split("/")[0];
+      if(/^(wall|topic|photo|video|album|note)-[A-Za-z0-9_\-]+$/.test(w)) redirect=w;
+    }
+    s=s.slice(0,q);
+    if(redirect){ var sl=s.indexOf("/"); s=(sl>-1?s.slice(0,sl):s)+"/"+redirect; }
+  }
   var hsh=s.indexOf("#"); if(hsh>-1) s=s.slice(0,hsh);
   var slash=s.indexOf("/");
   var host=slash>-1?s.slice(0,slash):s;
@@ -363,6 +376,12 @@ function normalizeUrl(raw){
   return host+path;
 }
 
+function okIdKey(n){
+  if(!n || n.indexOf("ok.ru/")!==0) return null;
+  var m=/^ok\.ru\/(?:group\/\d+|profile\/\d+|[^\/]+)\/(topic|statuses)\/(\d+)/.exec(n)||/^ok\.ru\/(topic|statuses)\/(\d+)/.exec(n);
+  return m?("ok.ru/"+m[1]+"/"+m[2]):null;
+}
+
 function classifyAll(rows, refList, prizmaSet){
   var refCounts=refList.map(function(){return 0;});
   var results=new Array(rows.length);
@@ -377,7 +396,8 @@ function classifyAll(rows, refList, prizmaSet){
       if(!rf) continue;
       if((n&&n.indexOf(rf)>-1)||rawLow.indexOf(rf)>-1){ hits.push(rf); refCounts[k]++; }
     }
-    var pz=prizmaSet?(n&&prizmaSet.has(n)):false;
+    var ik=prizmaSet?okIdKey(n):null;
+    var pz=prizmaSet?((n&&prizmaSet.has(n))||(ik&&prizmaSet.has(ik))):false;
     var osn=(hits.length&&pz)?"Референс и Призма":(hits.length?("Официальный источник ("+hits[0]+")"):(pz?"Совпадение с Призмой":""));
     results[i]={n:n,refHit:hits[0]||null,pz:pz,possev:(hits.length>0||pz),osn:osn,plotKey:row.plotKey,cls:""};
     if(row.plotKey){
@@ -779,6 +799,8 @@ var COL_DEFS=[
   ["url",   [/^url/],                    2, "Url"],
   ["link",  [/ссылк/],                   1, "Ссылка"],
   ["norm",  [/нормализован/],            1, "Нормализованная ссылка"],
+  ["info",  [/инфоповод/],               1, "Инфоповод"],
+  ["ctype", [/формат контента/],         1, "Формат контента"],
   ["aud",   [/аудитор/],                 1, "Аудитория"],
   ["views", [/просмотр/],                1, "Просмотры"],
   ["eng",   [/вовлеч/],                  1, "Вовлечённость"],
@@ -837,7 +859,8 @@ function firstCellsPreview(wb){
 
 function parseBrand(wb){
   var best=scanBestHeader(wb);
-  if(best && best.cols.norm!=null && best.cols.plot==null && best.cols.url==null && best.cols.src==null)
+  var prizmaOnly=(best.cols.norm!=null||best.cols.info!=null||best.cols.ctype!=null);
+  if(best && prizmaOnly && best.cols.plot==null && best.cols.url==null && best.cols.src==null)
     throw new Error("Похоже, это выгрузка Призмы — загрузите её во второе поле («Призма»), а сюда — выгрузку Бренд Аналитикс (СМИ и/или соцсети либо объединённый файл)");
   var okLink=best && (best.cols.url!=null || best.cols.link!=null);
   var okId=best && (best.cols.id!=null || best.cols.date!=null || best.cols.title!=null);
@@ -893,9 +916,10 @@ function parsePrizma(wb){
     count++;
     var raw=String(r[cRaw]||"").trim();
     var nv=cNorm>-1?String(r[cNorm]||"").trim():"";
-    if(!nv) normEmpty++;
-    if(raw) set.add(normalizeUrl(raw));
-    if(nv) set.add(normalizeUrl(nv));
+    if(cNorm>-1 && !nv) normEmpty++;
+    var k1=raw?normalizeUrl(raw):"", k2=nv?normalizeUrl(nv):"";
+    if(k1){ set.add(k1); var ik1=okIdKey(k1); if(ik1) set.add(ik1); }
+    if(k2){ set.add(k2); var ik2=okIdKey(k2); if(ik2) set.add(ik2); }
   }
   return {set:set, count:count, links:set.size, normEmpty:normEmpty, sheetName:best.sheet, headerRow:best.idx+1};
 }
