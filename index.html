@@ -112,6 +112,12 @@ details.refsbox{background:var(--surface);border:1px solid var(--border);border-
 details.refsbox summary{cursor:pointer;font-family:Georgia,"Times New Roman",serif;font-size:20px;font-weight:600;color:var(--text)}
 details.refsbox summary:hover{color:var(--accent)}
 div.tabsbar{display:flex;gap:10px;position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0;margin-bottom:16px;border-bottom:1px solid var(--border)}
+button.cloud-refresh{margin-left:auto}
+#cloud-alert{background:#b3382e;color:#fff;padding:10px 14px;border-radius:8px;margin:10px 0 14px;font-size:14px;display:none;align-items:center;gap:12px;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+#cloud-alert.on{display:flex}
+#cloud-alert .ca-msg{flex:1;min-width:0;word-break:break-word}
+.ca-btn{background:#fff;color:#b3382e;border:0;padding:5px 14px;border-radius:6px;cursor:pointer;font-weight:600;white-space:nowrap}
+.ca-x{background:transparent;color:#fff;border:0;padding:2px 6px;cursor:pointer;font-size:15px}
 button.tabbtn{border:1px solid var(--border);background:var(--surface);border-radius:999px;padding:8px 18px;font-size:13.5px;font-weight:600;cursor:pointer;color:var(--muted)}
 button.tabbtn.active{background:#B9CDA4;border-color:#A3B98A;color:#2F4218}
 .filecard.wide{grid-column:1/-1}
@@ -155,8 +161,9 @@ input[type=file]::file-selector-button:hover{background:#A9BE93}
 <h1><img class="headimg" alt="" src="data:image/png;base64,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">Посев · Урожай · Сорняки</h1>
 <p>Классификатор выгрузки из «Brand Analytics»</p>
 </div></header>
+<div id="cloud-alert" style="display:none"><span id="cloud-alert-msg"></span><button class="ca-btn" id="cloud-retry" type="button">Повторить загрузку</button><button class="ca-x" id="cloud-alert-close" type="button" title="Скрыть">✕</button></div>
 <main>
-<div class="tabsbar"><button class="tabbtn active" data-tab="load">Загрузка данных</button><button class="tabbtn" data-tab="anal">Результаты анализа</button></div>
+<div class="tabsbar"><button class="tabbtn active" data-tab="load">Загрузка данных</button><button class="tabbtn" data-tab="anal">Результаты анализа</button><button id="cloud-refresh" class="tabbtn cloud-refresh" title="Заново подтянуть всё из облака">⟳ Обновить из облака</button></div>
 <div id="tab-load">
 <section>
   <h2>Файлы по месяцам</h2>
@@ -739,25 +746,40 @@ async function cloudPutRefs(){
     await cloudPut("Референсы.json"+(pack.gz?".gz":""), pack.u8);
   }catch(e){ setStatus("Референсы не сохранены в облако: "+e.message,"err"); }
 }
+function cloudAlert(msg){
+  var b=$("#cloud-alert");
+  if(!b) return;
+  if(!msg){ b.className=""; b.style.display="none"; return; }
+  var m=$("#cloud-alert-msg"); if(m) m.textContent=msg;
+  b.style.display=""; b.className="on";
+}
+function cloudAlertBind(){
+  var rb=$("#cloud-retry");
+  if(rb) rb.addEventListener("click", function(){ cloudAlert(null); cloudLoadAll(); });
+  var xb=$("#cloud-alert-close");
+  if(xb) xb.addEventListener("click", function(){ cloudAlert(null); });
+  var rf=$("#cloud-refresh");
+  if(rf) rf.addEventListener("click", function(){ cloudAlert(null); cloudLoadAll(); });
+}
 async function cloudLoadAll(){
   if(!cloudReady()) return;
   setStatus("Загрузка данных из облака…");
   var r;
   try{ r=await cloudCall(""); }
-  catch(e){ setStatus("Облако недоступно: "+e.message,"err"); return; }
-  if(r.status===403){ setStatus("Неверный пароль облачного хранилища","err"); return; }
-  if(!r.ok){ setStatus("Облако вернуло ошибку "+r.status,"err"); return; }
+  catch(e){ cloudAlert("Не удалось обратиться к облаку: "+e.message); return; }
+  if(r.status===403){ cloudAlert("Неверный пароль облачного хранилища"); return; }
+  if(!r.ok){ cloudAlert("Облако вернуло ошибку "+r.status); return; }
   var man;
   try{ man=await r.json(); }
-  catch(e){ setStatus("Не удалось прочитать манифест облака","err"); return; }
+  catch(e){ cloudAlert("Не удалось прочитать манифест облака"); return; }
   if(man.refs && man.refs.file){
     try{
       var rd=await cloudGetJson(man.refs.file);
       if(Array.isArray(rd.refs) && rd.refs.length){ refs=rd.refs.map(String); saveRefs(); renderRefs(); }
-    }catch(e){}
+    }catch(e){ setStatus("Не удалось загрузить референсы из облака: "+e.message,"err"); }
   }
   var list=man.months||[];
-  var loaded=[];
+  var loaded=[], errs=[];
   for(var i=0;i<list.length;i++){
     var mi=list[i];
     try{
@@ -769,14 +791,19 @@ async function cloudLoadAll(){
         if(monthOrder.indexOf(mi.m)<0) monthOrder.push(mi.m);
         loaded.push(mi.m);
       }
-    }catch(e){ setStatus("Месяц "+mi.m+": "+e.message,"err"); }
+    }catch(e){ errs.push(mi.m+": "+e.message); }
   }
   monthOrder.sort(function(a,b){return a-b;});
   if(loaded.length){
-    setStatus("Загружено из облака: месяцев — "+loaded.length,"ok");
+    cloudAlert(null);
+    setStatus("Загружено из облака: месяцев — "+loaded.length+(errs.length?"; не загружено: "+errs.join("; "):""), errs.length?"err":"ok");
     periodSel=null;
-    recomputeAll();
-    refreshMonthCards();
+    try{
+      recomputeAll();
+      refreshMonthCards();
+    }catch(e){ cloudAlert("Данные загружены, но построение аналитики упало: "+e.message); }
+  } else if(errs.length){
+    cloudAlert("Месяцы есть в облаке, но не загрузились: "+errs.join("; "));
   } else {
     setStatus("Облако подключено, но данных пока нет. Загрузите файлы кнопками выше.","ok");
   }
@@ -1285,6 +1312,7 @@ showTab("load");
 renderRefs();
 renderChart();
 renderPlotTable();
+cloudAlertBind();
 
 $("#add-ref").addEventListener("click", function(){
   refs.push("");
