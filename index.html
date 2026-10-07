@@ -139,6 +139,7 @@ p.notice{border:1px solid #bcd9ea;background:#e8f3fb;color:#1a5276;border-radius
 footer{border-top:1px solid var(--border);color:var(--muted);font-size:12.5px;text-align:center;padding:18px}
 .headimg{display:inline-block;vertical-align:middle;margin-right:14px;max-height:110px;width:auto}
 .period-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+#year-bar{margin-bottom:10px}
 .plabel{font-size:13.5px;color:#6b737d;margin-right:2px}
 .pchip{border:1px solid #cfc9b8;background:#fff;border-radius:999px;padding:8px 16px;font-size:13px;cursor:pointer;color:#333}
 .pchip:hover{border-color:#A3B98A}
@@ -168,7 +169,7 @@ input[type=file]::file-selector-button:hover{background:#A9BE93}
 <section>
   <h2>Файлы по месяцам</h2>
   <p class="hint">Загрузите выгрузку «Бренд Аналитикс» (и при наличии — выгрузку посевов «Призмы») для каждого месяца. Данные всех загруженных месяцев объединяются: классификация и аналитика считаются сквозным итогом.</p>
-  <div class="uprow"><span class="plabel">Месяц:</span><select id="up-month"></select><button id="up-brand" class="primary">Загрузить «Бренд»…</button><button id="up-prizma">Загрузить «Призму»…</button><input type="file" id="up-brand-file" accept=".xlsx,.xls,.csv" style="display:none"><input type="file" id="up-prizma-file" accept=".xlsx,.xls,.csv" style="display:none"></div>
+  <div class="uprow"><span class="plabel" id="up-month-label">Месяц:</span><select id="up-month"></select><button id="up-brand" class="primary">Загрузить «Бренд»…</button><button id="up-prizma">Загрузить «Призму»…</button><input type="file" id="up-brand-file" accept=".xlsx,.xls,.csv" style="display:none"><input type="file" id="up-prizma-file" accept=".xlsx,.xls,.csv" style="display:none"></div>
   <p id="up-status" class="hint"></p>
   <div id="month-list"></div>
 </section>
@@ -188,6 +189,7 @@ input[type=file]::file-selector-button:hover{background:#A9BE93}
 
 <div id="tab-anal">
 <section class="period-sec">
+  <div id="year-bar" class="period-bar"></div>
   <div id="period-bar" class="period-bar"></div>
 </section>
 
@@ -475,9 +477,13 @@ var MONTH_NAMES=["Январь","Февраль","Март","Апрель","Ма
 var C1="#8FBC6A",C2="#B9D19A",C3="#E7E4A6",C4="#C4C4C4";
 var months={}, monthOrder=[], refCounts=[], lastStats=null;
 var plots=[], plotSort="count";
-var periodSel=null;
+var periodSel=null, yearSel=null;
 var popupList=[], popupShown=0;
 var firstLoadDone=false;
+function mkKey(y,m){ return y+'-'+(('0'+m).slice(-2)); }
+function kYear(k){ return parseInt(k,10); }
+function kMonth(k){ return parseInt(k.slice(5),10); }
+function mLabel(k){ return MONTH_NAMES[kMonth(k)-1]+' '+kYear(k); }
 
 function txtFor(hex){
   var r=parseInt(hex.substr(1,2),16),g=parseInt(hex.substr(3,2),16),b=parseInt(hex.substr(5,2),16);
@@ -529,38 +535,75 @@ function rebuildRefCounts(){
   updateRefCounts();
 }
 function periodMonths(){
-  return Array.isArray(periodSel)? periodSel.slice().sort(function(a,b){return a-b;}) : monthOrder.slice().sort(function(a,b){return a-b;});
+  var arr=Array.isArray(periodSel)? periodSel.slice() : monthOrder.slice();
+  if(yearSel!=null) arr=arr.filter(function(k){ return kYear(k)===yearSel; });
+  return arr.sort();
 }
 function periodLabelText(){
-  if(!Array.isArray(periodSel)) return 'Весь период';
+  if(!Array.isArray(periodSel)) return 'Весь период'+(yearSel!=null?' · '+yearSel:'');
   if(!periodSel.length) return '—';
-  return periodSel.slice().sort(function(a,b){return a-b;}).map(function(m){return MONTH_NAMES[m-1];}).join(', ');
+  return periodSel.slice().sort().map(function(k){ return yearSel!=null?MONTH_NAMES[kMonth(k)-1]:mLabel(k); }).join(', ');
 }
-function togglePeriod(m){
-  if(!Array.isArray(periodSel)) periodSel=[m];
-  else{ var i=periodSel.indexOf(m); if(i>=0) periodSel.splice(i,1); else periodSel.push(m); }
+function yearsWith(){
+  var s=new Set();
+  monthOrder.forEach(function(k){ s.add(kYear(k)); });
+  return Array.from(s).sort();
+}
+function defaultYear(){
+  var ys=yearsWith();
+  if(!ys.length) return null;
+  var cur=new Date().getFullYear();
+  return ys.indexOf(cur)>=0?cur:ys[ys.length-1];
+}
+function toggleYear(y){
+  yearSel=y;
+  if(Array.isArray(periodSel)) periodSel=periodSel.filter(function(k){ return kYear(k)===yearSel; });
+  if(periodSel&&!periodSel.length) periodSel=null;
+  refreshAnalysis();
+}
+function togglePeriod(k){
+  if(!Array.isArray(periodSel)) periodSel=[k];
+  else{ var i=periodSel.indexOf(k); if(i>=0) periodSel.splice(i,1); else periodSel.push(k); }
   refreshAnalysis();
 }
 function setPeriodAll(){ periodSel=null; refreshAnalysis(); }
+function renderYearBar(){
+  var bar=$("#year-bar");
+  if(!bar) return;
+  if(!monthOrder.length){ bar.innerHTML=''; bar.style.display='none'; return; }
+  bar.style.display='';
+  if(yearSel==null || yearsWith().indexOf(yearSel)<0) yearSel=defaultYear();
+  var h='<span class="plabel">Год:</span>';
+  yearsWith().forEach(function(y){
+    h+='<button class="pchip'+(yearSel===y?' on':'')+'" data-y="'+y+'">'+y+'</button>';
+  });
+  bar.innerHTML=h;
+}
 function renderPeriodBar(){
   var bar=$("#period-bar");
   if(!monthOrder.length){ bar.innerHTML=''; bar.style.display='none'; return; }
   bar.style.display='';
+  var ms=monthOrder.filter(function(k){ return yearSel==null||kYear(k)===yearSel; }).sort();
   var h='<span class="plabel">Период:</span>';
   h+='<button class="pchip'+(!Array.isArray(periodSel)?' on':'')+'" data-p="all">Весь период</button>';
-  monthOrder.slice().sort(function(a,b){return a-b;}).forEach(function(m){
-    var M=months[m]; var tot=M.stats?M.stats.c['Посев']+M.stats.c['Урожай']+M.stats.c['Сорняки']:0;
-    var on=Array.isArray(periodSel)&&periodSel.indexOf(m)>=0;
-    h+='<button class="pchip'+(on?' on':'')+'" data-m="'+m+'">'+MONTH_NAMES[m-1]+' <span class="pcnt">'+fmt(tot)+'</span></button>';
+  ms.forEach(function(k){
+    var M=months[k]; var tot=M.stats?M.stats.c['Посев']+M.stats.c['Урожай']+M.stats.c['Сорняки']:0;
+    var on=Array.isArray(periodSel)&&periodSel.indexOf(k)>=0;
+    h+='<button class="pchip'+(on?' on':'')+'" data-m="'+k+'">'+MONTH_NAMES[kMonth(k)-1]+' <span class="pcnt">'+fmt(tot)+'</span></button>';
   });
   bar.innerHTML=h;
 }
+$("#year-bar").addEventListener("click", function(e){
+  var b=e.target&&e.target.closest?e.target.closest("button.pchip"):null; if(!b) return;
+  var y=parseInt(b.getAttribute("data-y"),10); if(!isNaN(y)) toggleYear(y);
+});
 $("#period-bar").addEventListener("click", function(e){
   var b=e.target&&e.target.closest?e.target.closest("button.pchip"):null; if(!b) return;
   if(b.getAttribute("data-p")==="all"){ setPeriodAll(); return; }
-  var mm=parseInt(b.getAttribute("data-m"),10); if(!isNaN(mm)) togglePeriod(mm);
+  var k=b.getAttribute("data-m"); if(k) togglePeriod(k);
 });
 function refreshAnalysis(){
+  renderYearBar();
   renderPeriodBar();
   var ms=periodMonths();
   if(!ms.length){
@@ -658,9 +701,9 @@ async function cloudCall(q, opts){
   }
   return r;
 }
-function toMonthJson(m){
-  var M=months[m];
-  var j={v:1, year:new Date().getFullYear(), month:m, name:stdMonthName("brand",m),
+function toMonthJson(k){
+  var M=months[k];
+  var j={v:1, year:kYear(k), month:kMonth(k), name:stdMonthName("brand",k),
     header:(M.brand.header||[]).slice(0,24), sheet:M.brand.sheetName, hrow:M.brand.headerRow,
     plots:M.brand.plotsCount,
     rows:M.brand.rows.map(function(r){ return [r.id,r.date,r.time,r.title,r.src,r.url,numVal(r.views),numVal(r.aud),r.plotKey]; })};
@@ -717,28 +760,28 @@ async function cloudPut(name, u8){
   }
   throw lastErr||new Error(name+": не удалось сохранить");
 }
-async function cloudUploadMonth(m){
+async function cloudUploadMonth(k){
   if(!cloudReady()) return;
-  var M=months[m];
+  var M=months[k];
   try{
     if(M.brand){
-      var pack=await gzipJson(toMonthJson(m));
-      await cloudPut(stdMonthName("brand",m)+".json"+(pack.gz?".gz":""), pack.u8);
+      var pack=await gzipJson(toMonthJson(k));
+      await cloudPut(stdMonthName("brand",k)+".json"+(pack.gz?".gz":""), pack.u8);
     }
     if(M.prizmaInfo){
-      var pj={v:1, year:new Date().getFullYear(), month:m, name:stdMonthName("prizma",m),
+      var pj={v:1, year:kYear(k), month:kMonth(k), name:stdMonthName("prizma",k),
         links:Array.from(M.prizmaInfo.set), count:M.prizmaInfo.count, normEmpty:M.prizmaInfo.normEmpty};
       var pack2=await gzipJson(pj);
-      await cloudPut(stdMonthName("prizma",m)+".json"+(pack2.gz?".gz":""), pack2.u8);
+      await cloudPut(stdMonthName("prizma",k)+".json"+(pack2.gz?".gz":""), pack2.u8);
     }
-    setStatus("Сохранено в облако: "+stdMonthName("brand",m)+(M.prizmaInfo?" и «Призма»":""),"ok");
+    setStatus("Сохранено в облако: "+stdMonthName("brand",k)+(M.prizmaInfo?" и «Призма»":""),"ok");
   }catch(e){
     setStatus("В облако не сохранено: "+e.message,"err");
   }
 }
-async function cloudDeleteMonth(m){
+async function cloudDeleteMonth(k){
   if(!cloudReady()) return;
-  var names=[stdMonthName("brand",m)+".json",stdMonthName("brand",m)+".json.gz",stdMonthName("prizma",m)+".json",stdMonthName("prizma",m)+".json.gz"];
+  var names=[stdMonthName("brand",k)+".json",stdMonthName("brand",k)+".json.gz",stdMonthName("prizma",k)+".json",stdMonthName("prizma",k)+".json.gz"];
   for(var i=0;i<names.length;i++){
     try{ await cloudCall("?op=del&name="+encodeURIComponent(names[i])); }catch(e){}
   }
@@ -786,18 +829,19 @@ async function cloudLoadAll(){
   var loaded=[], errs=[];
   for(var i=0;i<list.length;i++){
     var mi=list[i];
+    var k=mkKey(mi.year, mi.m);
     try{
-      var M={};
+      var M={year:mi.year, m:mi.m};
       if(mi.brand) M.brand=monthFromJson(await cloudGetJson(mi.brand));
       if(mi.prizma) M.prizmaInfo=prizmaFromJson(await cloudGetJson(mi.prizma));
       if(M.brand){
-        months[mi.m]=M;
-        if(monthOrder.indexOf(mi.m)<0) monthOrder.push(mi.m);
-        loaded.push(mi.m);
+        months[k]=M;
+        if(monthOrder.indexOf(k)<0) monthOrder.push(k);
+        loaded.push(k);
       }
-    }catch(e){ errs.push(mi.m+": "+e.message); }
+    }catch(e){ errs.push(mLabel(k)+" — "+e.message); }
   }
-  monthOrder.sort(function(a,b){return a-b;});
+  monthOrder.sort();
   if(loaded.length){
     cloudAlert(null);
     setStatus("Загружено из облака: месяцев — "+loaded.length+(errs.length?"; не загружено: "+errs.join("; "):""), errs.length?"err":"ok");
@@ -1037,7 +1081,7 @@ function renderChart(){
   periodMonths().forEach(function(m){
     var M=months[m]; if(!M.stats) return;
     var s=M.stats;
-    list.push({name:MONTH_NAMES[m-1],
+    list.push({name:MONTH_NAMES[kMonth(m)-1],
       seg:[{t:"Посев",v:s.c["Посев"],color:C1},
            {t:"Урожай",v:s.c["Урожай"],color:C2},
            {t:"Сорняки (по сюжетам)",v:s.c["Сорняки"]-s.noPlotDik,color:C3},
@@ -1163,9 +1207,8 @@ function setStatus(t, cls){
   el.textContent=t||"";
   el.className="hint"+(cls?" "+cls:"");
 }
-function stdMonthName(kind,m){
-  var y=new Date().getFullYear();
-  return (kind==="brand"?"Бренд":"Призма")+" "+y+"-"+("0"+m).slice(-2);
+function stdMonthName(kind,k){
+  return (kind==="brand"?"Бренд":"Призма")+" "+k;
 }
 function buildUploadRow(){
   var sel=$("#up-month");
@@ -1175,6 +1218,8 @@ function buildUploadRow(){
   var h="";
   for(var m=1;m<=12;m++) h+='<option value="'+m+'"'+(m===def?" selected":"")+'>'+MONTH_NAMES[m-1]+'</option>';
   sel.innerHTML=h;
+  var lb=$("#up-month-label");
+  if(lb) lb.textContent="Месяц "+y+":";
   $("#up-brand").addEventListener("click", function(){ $("#up-brand-file").click(); });
   $("#up-prizma").addEventListener("click", function(){ $("#up-prizma-file").click(); });
   $("#up-brand-file").addEventListener("change", function(e){ var f=e.target.files&&e.target.files[0]; e.target.value=""; if(f) uploadPicked("brand", f); });
@@ -1183,78 +1228,79 @@ function buildUploadRow(){
 function uploadPicked(kind, f){
   var m=parseInt($("#up-month").value,10);
   if(isNaN(m)) return;
-  var existing=months[m]&&(kind==="brand"?months[m].brand:months[m].prizmaInfo);
-  if(existing && !confirm("За "+MONTH_NAMES[m-1].toLowerCase()+" уже загружены данные. Заменить «"+stdMonthName(kind,m)+"» файлом «"+f.name+"»?")) return;
-  if(kind==="brand") setMonthBrand(m,f); else setMonthPrizma(m,f);
+  var y=new Date().getFullYear();
+  var k=mkKey(y, m);
+  var existing=months[k]&&(kind==="brand"?months[k].brand:months[k].prizmaInfo);
+  if(existing && !confirm("За "+MONTH_NAMES[m-1].toLowerCase()+" "+y+" уже загружены данные. Заменить «"+stdMonthName(kind,k)+"» файлом «"+f.name+"»?")) return;
+  if(kind==="brand") setMonthBrand(k,f); else setMonthPrizma(k,f);
 }
 function refreshMonthCards(){
   var box=$("#month-list");
   if(!box) return;
-  var ms=monthOrder.slice().sort(function(a,b){return a-b;});
+  var ms=monthOrder.slice().sort();
   if(!ms.length){ box.innerHTML='<p class="muted">Данные пока не загружены.</p>'; return; }
-  var y=new Date().getFullYear();
   var h='';
-  ms.forEach(function(m){
-    var M=months[m];
+  ms.forEach(function(k){
+    var M=months[k];
     var st=[];
     if(M.brand) st.push('Бренд: '+fmt(M.brand.rows.length)+' сообщ. · '+fmt(M.brand.plotsCount)+' сюжетов'+(M.brand.warn?' ⚠':''));
     else st.push('Бренд: нет');
     if(M.prizmaInfo) st.push('Призма: '+fmt(M.prizmaInfo.count)+' записей · '+fmt(M.prizmaInfo.links)+' ссылок');
     else st.push('Призма: нет');
-    h+='<div class="mrow"><span class="mrow-name">'+MONTH_NAMES[m-1]+' '+y+'</span><span class="mrow-info">'+st.join(' · ')+'</span><button class="del mclear" data-m="'+m+'" title="Убрать данные за месяц">✕</button></div>';
+    h+='<div class="mrow"><span class="mrow-name">'+mLabel(k)+'</span><span class="mrow-info">'+st.join(' · ')+'</span><button class="del mclear" data-m="'+k+'" title="Убрать данные за месяц">✕</button></div>';
   });
   box.innerHTML=h;
   box.querySelectorAll(".mclear").forEach(function(b){
-    b.addEventListener("click", function(){ clearMonth(parseInt(b.getAttribute("data-m"),10)); });
+    b.addEventListener("click", function(){ clearMonth(b.getAttribute("data-m")); });
   });
 }
-function setMonthBrand(m, f){
+function setMonthBrand(k, f){
   setStatus('Обработка «'+f.name+'»…');
   if(typeof XLSX==="undefined"){ setStatus('Ошибка: библиотека не загрузилась','err'); return; }
   readWorkbookFile(f, function(err, wb){
     if(err){ setStatus('Ошибка: '+err.message,'err'); return; }
     try{
       var b=parseBrand(wb);
-      b.fileName=stdMonthName("brand",m);
-      months[m]=months[m]||{};
-      months[m].brand=b;
-      if(monthOrder.indexOf(m)<0){ monthOrder.push(m); monthOrder.sort(function(a,b){return a-b;}); }
+      b.fileName=stdMonthName("brand",k);
+      months[k]=months[k]||{year:kYear(k), m:kMonth(k)};
+      months[k].brand=b;
+      if(monthOrder.indexOf(k)<0){ monthOrder.push(k); monthOrder.sort(); }
       setStatus('Загружен «'+f.name+'» → «'+b.fileName+'»: '+fmt(b.rows.length)+' сообщений · '+fmt(b.plotsCount)+' сюжетов'+(b.warn?' · ⚠ '+b.warn.trim():''),'ok');
       recomputeAll();
       refreshMonthCards();
-      cloudUploadMonth(m);
+      cloudUploadMonth(k);
     }catch(err2){
       setStatus('Ошибка: '+err2.message,'err');
-      if(months[m]){ months[m].brand=null; if(!months[m].prizmaInfo) delete months[m]; }
+      if(months[k]){ months[k].brand=null; if(!months[k].prizmaInfo) delete months[k]; }
       monthOrder=monthOrder.filter(function(x){ return months[x]; });
-      periodSel=[m]; recomputeAll(); refreshMonthCards();
+      periodSel=[k]; recomputeAll(); refreshMonthCards();
     }
   });
 }
-function setMonthPrizma(m, f){
+function setMonthPrizma(k, f){
   setStatus('Обработка «'+f.name+'»…');
   readWorkbookFile(f, function(err, wb){
     if(err){ setStatus('Ошибка: '+err.message,'err'); return; }
     try{
       var pz=parsePrizma(wb);
-      months[m]=months[m]||{};
-      months[m].prizmaInfo=pz;
-      setStatus('Загружена «'+f.name+'» → «'+stdMonthName("prizma",m)+'»: '+fmt(pz.count)+' записей · '+fmt(pz.links)+' уникальных ссылок'+(pz.normEmpty?', пустых «нормализованных»: '+fmt(pz.normEmpty):''),'ok');
+      months[k]=months[k]||{year:kYear(k), m:kMonth(k)};
+      months[k].prizmaInfo=pz;
+      setStatus('Загружена «'+f.name+'» → «'+stdMonthName("prizma",k)+'»: '+fmt(pz.count)+' записей · '+fmt(pz.links)+' уникальных ссылок'+(pz.normEmpty?', пустых «нормализованных»: '+fmt(pz.normEmpty):''),'ok');
     }catch(err2){
       setStatus('Ошибка: '+err2.message,'err');
-      if(months[m]){ months[m].prizmaInfo=null; if(!months[m].brand) delete months[m]; }
+      if(months[k]){ months[k].prizmaInfo=null; if(!months[k].brand) delete months[k]; }
     }
     recomputeAll();
     refreshMonthCards();
-    cloudUploadMonth(m);
+    cloudUploadMonth(k);
   });
 }
-function clearMonth(m){
-  if(months[m] && !confirm('Убрать данные за '+MONTH_NAMES[m-1].toLowerCase()+'?'+(cloudReady()?' Файлы будут удалены и из облачного хранилища.':''))) return;
-  delete months[m];
-  monthOrder=monthOrder.filter(function(x){ return x!==m; });
-  if(Array.isArray(periodSel)){ periodSel=periodSel.filter(function(x){return x!==m;}); if(!periodSel.length) periodSel=null; }
-  if(cloudReady()) cloudDeleteMonth(m);
+function clearMonth(k){
+  if(months[k] && !confirm('Убрать данные за '+mLabel(k).toLowerCase()+'?'+(cloudReady()?' Файлы будут удалены и из облачного хранилища.':''))) return;
+  delete months[k];
+  monthOrder=monthOrder.filter(function(x){ return x!==k; });
+  if(Array.isArray(periodSel)){ periodSel=periodSel.filter(function(x){return x!==k;}); if(!periodSel.length) periodSel=null; }
+  if(cloudReady()) cloudDeleteMonth(k);
   recomputeAll(); refreshMonthCards();
 }
 function showTab(t){
