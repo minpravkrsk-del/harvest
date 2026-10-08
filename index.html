@@ -197,7 +197,6 @@ input[type=file]::file-selector-button:hover{background:#A9BE93}
   <h2>Результат классификации</h2>
   <div class="biglegend" id="chart-legend"></div>
   <div id="chart"></div>
-  <p id="chart-note" class="hint" style="margin:2px 0 0"></p>
   <p class="hint">Левый столбец — «наше поле» (посев тёмно-зелёный + урожай зелёный), правый — сорняки и дикоросы (жёлтый — сообщения сюжетов без посева, серый — сообщения без сюжета). Высота столбцов — число сообщений.</p>
 </section>
 
@@ -1126,18 +1125,13 @@ function niceCeil(v){
   var blockW=(innerW-gm*(n-1))/n;
   var colW=(blockW-g1)/2;
   if(colW<10){ colW=Math.max(6,blockW/2); g1=blockW-2*colW; }
-  var maxCol=0, topName='';
+  var maxCol=0;
   list.forEach(function(it){
     var c1=it.seg[0].v+it.seg[1].v, c2=it.seg[2].v+it.seg[3].v;
-    if(c1>maxCol){ maxCol=c1; topName=it.name; }
-    if(c2>maxCol){ maxCol=c2; topName=it.name; }
+    if(c1>maxCol) maxCol=c1;
+    if(c2>maxCol) maxCol=c2;
   });
   var ymax=niceCeil(maxCol);
-  var note=$("#chart-note");
-  if(note){
-    if(list.length>1) note.textContent='Верх шкалы — по самому высокому столбцу: '+topName+' ('+fmt(maxCol)+' сообщ. в столбце).';
-    else note.textContent='';
-  }
   var y0=padT+innerH;
   function yOf(v){ return Math.round(y0-innerH*v/ymax); }
   var svg='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet" role="img">';
