@@ -907,12 +907,10 @@ async function cloudLoadAllInner(targetYear){
   var man;
   try{ man=await r.json(); }
   catch(e){ cloudAlert("Не удалось прочитать манифест облака"); return; }
-  if(man.refs && man.refs.file){
-    try{
-      var rd=await cloudGetJson(man.refs.file);
-      if(Array.isArray(rd.refs) && rd.refs.length){ refs=rd.refs.map(String); saveRefs(); renderRefs(); }
-    }catch(e){ setStatus("Не удалось загрузить референсы из облака: "+e.message,"err"); }
-  }
+  var refsP=null;
+  if(man.refs && man.refs.file) refsP=cloudGetJson(man.refs.file).then(function(rd){
+    if(Array.isArray(rd.refs) && rd.refs.length){ refs=rd.refs.map(String); saveRefs(); renderRefs(); }
+  }).catch(function(e){ setStatus("Не удалось загрузить референсы из облака: "+e.message,"err"); });
   cloudYears=[];
   (man.months||[]).forEach(function(mi){ if(cloudYears.indexOf(mi.year)<0) cloudYears.push(mi.year); });
   cloudYears.sort();
@@ -928,49 +926,52 @@ async function cloudLoadAllInner(targetYear){
   var doneFiles=0;
   function prog(){ setStatus("Загрузка из облака: "+doneFiles+" из "+totalFiles+" файлов…"); }
   if(totalFiles) prog();
-  var BATCH=4;
+  var CONC=4, ni=0;
   var comboFails=0, comboBroken=false;
-  for(var bi=0;bi<list.length;bi+=BATCH){
-    await Promise.all(list.slice(bi,bi+BATCH).map(function(mi){
-      return (async function(){
-        var k=mkKey(mi.year, mi.m);
-        try{
-          var M={year:mi.year, m:mi.m};
-          var comboDone=false;
-          if(!comboBroken){
-            try{
-              var d=await fetchMonthCombined(mi);
-              if(d){
-                if(d.brand) M.brand=monthFromJson(d.brand);
-                if(d.prizma) M.prizmaInfo=prizmaFromJson(d.prizma);
-                doneFiles+=(mi.brand?1:0)+(mi.prizma?1:0);
-                prog();
-                comboDone=true;
-                comboFails=0;
-              }else{
-                comboFails++;
-                if(comboFails>=2) comboBroken=true;
-              }
-            }catch(e){
+  async function pullMonth(){
+    while(ni<list.length){
+      var mi=list[ni++];
+      var k=mkKey(mi.year, mi.m);
+      try{
+        var M={year:mi.year, m:mi.m};
+        var comboDone=false;
+        if(!comboBroken){
+          try{
+            var d=await fetchMonthCombined(mi);
+            if(d && d.brand){
+              if(d.brand) M.brand=monthFromJson(d.brand);
+              if(d.prizma) M.prizmaInfo=prizmaFromJson(d.prizma);
+              doneFiles+=(mi.brand?1:0)+(mi.prizma?1:0);
+              prog();
+              comboDone=true;
+              comboFails=0;
+            }else{
               comboFails++;
-              if(comboFails>=3) comboBroken=true;
+              if(comboFails>=2) comboBroken=true;
             }
+          }catch(e){
+            comboFails++;
+            if(comboFails>=3) comboBroken=true;
           }
-          if(!comboDone){
-            var pb=mi.brand?cloudGetJson(mi.brand):null;
-            var pp=mi.prizma?cloudGetJson(mi.prizma):null;
-            if(pb){ M.brand=monthFromJson(await pb); doneFiles++; prog(); }
-            if(pp){ M.prizmaInfo=prizmaFromJson(await pp); doneFiles++; prog(); }
-          }
-          if(M.brand){
-            months[k]=M;
-            if(monthOrder.indexOf(k)<0) monthOrder.push(k);
-            loaded.push(k);
-          }
-        }catch(e){ errs.push(mLabel(k)+" — "+e.message); }
-      })();
-    }));
+        }
+        if(!comboDone){
+          var pb=mi.brand?cloudGetJson(mi.brand):null;
+          var pp=mi.prizma?cloudGetJson(mi.prizma):null;
+          if(pb){ M.brand=monthFromJson(await pb); doneFiles++; prog(); }
+          if(pp){ M.prizmaInfo=prizmaFromJson(await pp); doneFiles++; prog(); }
+        }
+        if(M.brand){
+          months[k]=M;
+          if(monthOrder.indexOf(k)<0) monthOrder.push(k);
+          loaded.push(k);
+        }
+      }catch(e){ errs.push(mLabel(k)+" — "+e.message); }
+    }
   }
+  var wk=[];
+  for(var wi=0;wi<CONC && wi<list.length;wi++) wk.push(pullMonth());
+  await Promise.all(wk);
+  if(refsP) await refsP;
   if(targetYear!=null && loaded.length){ yearSel=targetYear; periodSel=null; }
   monthOrder.sort();
   if(loaded.length){
